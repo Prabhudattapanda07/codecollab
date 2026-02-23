@@ -1,458 +1,314 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import Editor from '@monaco-editor/react';
-import toast from 'react-hot-toast';
-import api from '../utils/api';
-import { getSocket } from '../socket/socket';
+
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import Editor from "@monaco-editor/react";
+import toast from "react-hot-toast";
+import api from "../utils/api";
+import { getSocket } from "../socket/socket";
 
 const CodingRoom = () => {
-  const { roomId } = useParams();
-  const navigate = useNavigate();
-  const [code, setCode] = useState('// Start coding...');
-  const [language, setLanguage] = useState('javascript');
-  const [output, setOutput] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
-  const [users, setUsers] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [messageInput, setMessageInput] = useState('');
-  const [user, setUser] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isCopying, setIsCopying] = useState(false);
-  const [inputValue, setInputValue] = useState('');
-  const socketRef = useRef(null);
-  const chatEndRef = useRef(null);
-  const editorRef = useRef(null);
-  const monacoRef = useRef(null);
 
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
-      navigate('/login');
-      return;
-    }
-    setUser(JSON.parse(userData));
-  }, [navigate]);
+const { roomId } = useParams();
+const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!user) return;
+const [code, setCode] = useState("// Start coding...");
+const [language, setLanguage] = useState("javascript");
+const [output, setOutput] = useState("");
 
-    // Initialize socket
-    socketRef.current = getSocket();
+const [isRunning, setIsRunning] = useState(false);
+const [isSaving, setIsSaving] = useState(false);
 
-    // Join room
-    socketRef.current.emit('join-room', {
-      roomId,
-      userName: user.name,
-    });
+const [users, setUsers] = useState([]);
+const [messages, setMessages] = useState([]);
+const [messageInput, setMessageInput] = useState("");
 
-    // Load existing code
-    loadCode();
+const [user, setUser] = useState(null);
 
-    // Socket event listeners
-    socketRef.current.on('code-update', ({ code }) => {
-      setCode(code);
-    });
+const socketRef = useRef(null);
+const chatEndRef = useRef(null);
 
-    socketRef.current.on('language-update', ({ language }) => {
-      setLanguage(language);
-    });
 
-    socketRef.current.on('room-users', (usersList) => {
-      setUsers(usersList);
-    });
+// ✅ Check user login
+useEffect(() => {
 
-    socketRef.current.on('user-joined', ({ userName, users: usersList }) => {
-      setUsers(usersList);
-      toast.success(`${userName} joined the room`);
-    });
+const userData = localStorage.getItem("user");
 
-    socketRef.current.on('user-left', ({ userName, users: usersList }) => {
-      setUsers(usersList);
-      toast(`${userName} left the room`, { icon: '👋' });
-    });
+if (!userData) {
+navigate("/login");
+return;
+}
 
-    socketRef.current.on('chat-message', ({ message, userName, timestamp }) => {
-      setMessages((prev) => [...prev, { message, userName, timestamp }]);
-    });
+setUser(JSON.parse(userData));
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.emit('leave-room', { roomId });
-      }
-    };
-  }, [roomId, user]);
+}, []);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
-  const loadCode = async () => {
-    try {
-      const response = await api.get(`/api/load-code/${roomId}`);
-      if (response.data.success) {
-        setCode(response.data.code.code);
-        setLanguage(response.data.code.language);
-      }
-    } catch (error) {
-      console.error('Load code error:', error);
-    }
-  };
+// ✅ Load code and connect socket
+useEffect(() => {
 
-  const handleCodeChange = (value) => {
-    setCode(value);
-    if (socketRef.current) {
-      socketRef.current.emit('code-change', { roomId, code: value });
-    }
-  };
+if (!user) return;
 
-  const handleLanguageChange = (e) => {
-    const newLanguage = e.target.value;
-    setLanguage(newLanguage);
-    if (socketRef.current) {
-      socketRef.current.emit('language-change', { roomId, language: newLanguage });
-    }
-  };
+socketRef.current = getSocket();
 
-  const handleSaveCode = async () => {
-    setIsSaving(true);
-    try {
-      const response = await api.post('/api/save-code', {
-        roomId,
-        code,
-        language,
-      });
-      if (response.data.success) {
-        toast.success('Code saved successfully!');
-      }
-    } catch (error) {
-      toast.error('Failed to save code');
-    } finally {
-      setIsSaving(false);
-    }
-  };
+socketRef.current.emit("join-room", {
 
-  const handleRunCode = async () => {
-    // Special case: HTML - render preview in browser instead of using Judge0
-    if (language === 'html') {
-      setOutput(''); // output not used for HTML; preview is rendered below
-      toast.success('HTML rendered in preview!');
-      return;
-    }
+roomId,
+userName: user.name
 
-    setIsRunning(true);
-    setOutput('Running code...');
+});
 
-    try {
-      const response = await api.post('/api/execute-code', {
-        code,
-        language,
-        input: inputValue,
-      });
+loadCode();
 
-      const resultOutput = response.data.output || 'No output';
-      setOutput(resultOutput);
-      toast.success('Code executed!');
-    } catch (error) {
-      const errorMsg = error.response?.data?.output || error.response?.data?.message || 'Execution failed';
-      setOutput(errorMsg);
-      toast.error('Execution failed');
-    } finally {
-      setIsRunning(false);
-    }
-  };
+socketRef.current.on("code-update", ({ code }) => {
 
-  const handleCopyAllCode = async () => {
-    try {
-      setIsCopying(true);
-      await navigator.clipboard.writeText(code || '');
-      toast.success('Code copied to clipboard!');
-    } catch (error) {
-      toast.error('Failed to copy code');
-    } finally {
-      setIsCopying(false);
-    }
-  };
+setCode(code);
 
-  const handleDownloadCurrentCode = () => {
-    const extensions = {
-      javascript: 'js',
-      python: 'py',
-      java: 'java',
-      cpp: 'cpp',
-      c: 'c',
-    };
-    const ext = extensions[language] || 'txt';
-    const filename = `room-${roomId}.${ext}`;
-    const blob = new Blob([code || ''], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success('Download started');
-  };
+});
 
-  const handleEditorMount = (editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
+socketRef.current.on("room-users", (usersList) => {
 
-    // Basic HTML tag suggestions similar to VS Code
-    monaco.languages.registerCompletionItemProvider('html', {
-      triggerCharacters: ['<', '/'],
-      provideCompletionItems: (model, position) => {
-        const tags = [
-          'html', 'head', 'body',
-          'div', 'span', 'p',
-          'h1', 'h2', 'h3', 'h4',
-          'ul', 'ol', 'li',
-          'a', 'button',
-          'input', 'label', 'form',
-          'section', 'header', 'footer', 'main', 'nav',
-          'img'
-        ];
+setUsers(usersList);
 
-        const suggestions = tags.map((tag) => ({
-          label: `<${tag}>`,
-          kind: monaco.languages.CompletionItemKind.Snippet,
-          insertText: `<${tag}>$0</${tag}>`,
-          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-          range: {
-            startLineNumber: position.lineNumber,
-            startColumn: position.column,
-            endLineNumber: position.lineNumber,
-            endColumn: position.column,
-          },
-        }));
+});
 
-        return { suggestions };
-      },
-    });
-  };
+socketRef.current.on("chat-message", (msg) => {
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!messageInput.trim()) return;
+setMessages(prev => [...prev, msg]);
 
-    const message = {
-      message: messageInput,
-      userName: user.name,
-      timestamp: new Date().toISOString(),
-    };
+});
 
-    socketRef.current.emit('chat-message', { roomId, ...message });
-    setMessageInput('');
-  };
+return () => {
 
-  const copyRoomId = () => {
-    navigator.clipboard.writeText(roomId);
-    toast.success('Room ID copied to clipboard!');
-  };
+socketRef.current.emit("leave-room", { roomId });
 
-  return (
-    <div className="h-screen flex flex-col bg-dark-100">
-      {/* Header */}
-      <div className="bg-dark-200 border-b border-dark-400 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-gray-400 hover:text-white transition duration-200"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </button>
-          <h1 className="text-xl font-bold text-white">CodeCollab</h1>
-          <div className="flex items-center space-x-2">
-            <span className="text-gray-400">Room:</span>
-            <code className="bg-dark-300 px-3 py-1 rounded text-green-400 font-mono">{roomId}</code>
-            <button
-              onClick={copyRoomId}
-              className="text-gray-400 hover:text-white transition duration-200"
-              title="Copy Room ID"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </button>
-          </div>
-        </div>
+};
 
-        <div className="flex items-center space-x-4">
-          <select
-            value={language}
-            onChange={handleLanguageChange}
-            className="bg-dark-300 text-white px-3 py-2 rounded-lg border border-dark-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="javascript">JavaScript</option>
-            <option value="python">Python</option>
-            <option value="java">Java</option>
-            <option value="cpp">C++</option>
-            <option value="c">C</option>
-            <option value="html">HTML</option>
-          </select>
+}, [user]);
 
-          <button
-            onClick={handleSaveCode}
-            disabled={isSaving}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-200 disabled:opacity-50"
-          >
-            {isSaving ? 'Saving...' : 'Save'}
-          </button>
 
-          <button
-            onClick={handleRunCode}
-            disabled={isRunning}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 disabled:opacity-50 flex items-center space-x-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>{isRunning ? 'Running...' : 'Run'}</span>
-          </button>
+// ✅ Load code from database
+const loadCode = async () => {
 
-          <button
-            onClick={handleCopyAllCode}
-            disabled={isCopying}
-            className="px-3 py-2 bg-dark-300 text-white rounded-lg hover:bg-dark-400 transition duration-200 disabled:opacity-50 text-sm"
-          >
-            {isCopying ? 'Copying...' : 'Copy'}
-          </button>
+try {
 
-          <button
-            onClick={handleDownloadCurrentCode}
-            className="px-3 py-2 bg-dark-300 text-white rounded-lg hover:bg-dark-400 transition duration-200 text-sm"
-          >
-            Download
-          </button>
-        </div>
-      </div>
+const res = await api.get(`/code/load-code/${roomId}`);
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Editor Section */}
-        <div className="flex-1 flex flex-col">
-          <Editor
-            height="70%"
-            language={language === 'html' ? 'html' : language}
-            value={code}
-            onChange={handleCodeChange}
-            onMount={handleEditorMount}
-            theme="vs-dark"
-            options={{
-              fontSize: 14,
-              minimap: { enabled: true },
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              automaticLayout: true,
-            }}
-          />
+if (res.data.success) {
 
-          {/* Input + Output Console / HTML Preview */}
-          <div className="h-[30%] bg-dark-200 border-t border-dark-400 flex flex-col">
-            <div className="px-4 py-2 bg-dark-300 border-b border-dark-400">
-              <h3 className="text-white font-semibold">
-                {language === 'html' ? 'HTML Preview' : 'Console'}
-              </h3>
-            </div>
-            <div className="flex-1 overflow-auto p-4 space-y-4">
-              {language !== 'html' && (
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">Input (stdin, optional)</p>
-                  <textarea
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="Type input that will be passed to your program..."
-                    className="w-full h-16 bg-dark-300 text-white px-3 py-2 rounded-lg border border-dark-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-                  />
-                </div>
-              )}
+setCode(res.data.code.code);
 
-              <div className="flex-1 min-h-0">
-                <p className="text-xs text-gray-400 mb-1">
-                  {language === 'html' ? 'Rendered page' : 'Output'}
-                </p>
-                <div className="h-full overflow-auto bg-dark-300 rounded-lg border border-dark-400 p-3">
-                  {language === 'html' ? (
-                    <iframe
-                      title="HTML Preview"
-                      srcDoc={code}
-                      className="w-full h-full bg-white rounded"
-                      sandbox="allow-scripts allow-same-origin"
-                    />
-                  ) : (
-                    <pre className="text-gray-300 font-mono text-sm whitespace-pre-wrap break-words">
-                      {output || 'Run code to see output...'}
-                    </pre>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+setLanguage(res.data.code.language);
 
-        {/* Sidebar */}
-        <div className="w-80 bg-dark-200 border-l border-dark-400 flex flex-col">
-          {/* Users Section */}
-          <div className="p-4 border-b border-dark-400">
-            <h3 className="text-white font-semibold mb-3">Connected Users ({users.length})</h3>
-            <div className="space-y-2">
-              {users.map((userName, index) => (
-                <div key={index} className="flex items-center space-x-2 text-gray-300">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>{userName}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+}
 
-          {/* Chat Section */}
-          <div className="flex-1 flex flex-col">
-            <div className="px-4 py-2 bg-dark-300 border-b border-dark-400">
-              <h3 className="text-white font-semibold">Chat</h3>
-            </div>
+} catch {
 
-            <div className="flex-1 overflow-auto p-4 space-y-3">
-              {messages.map((msg, index) => (
-                <div key={index} className="text-sm">
-                  <div className="flex items-baseline space-x-2">
-                    <span className="font-semibold text-blue-400">{msg.userName}:</span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <p className="text-gray-300 mt-1">{msg.message}</p>
-                </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
+toast.error("Failed to load code");
 
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-dark-400">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-dark-300 text-white px-3 py-2 rounded-lg border border-dark-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200"
-                >
-                  Send
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+}
+
+};
+
+
+// ✅ Save Code
+const handleSaveCode = async () => {
+
+try {
+
+setIsSaving(true);
+
+await api.post("/code/save-code", {
+
+roomId,
+code,
+language
+
+});
+
+toast.success("Code saved");
+
+} catch {
+
+toast.error("Save failed");
+
+}
+
+setIsSaving(false);
+
+};
+
+
+// ✅ Run Code
+const handleRunCode = async () => {
+
+try {
+
+setIsRunning(true);
+
+setOutput("Running...");
+
+const res = await api.post("/code/execute-code", {
+
+code,
+language
+
+});
+
+setOutput(res.data.output);
+
+toast.success("Executed");
+
+} catch {
+
+toast.error("Execution failed");
+
+}
+
+setIsRunning(false);
+
+};
+
+
+// ✅ Code change
+const handleCodeChange = (value) => {
+
+setCode(value);
+
+socketRef.current.emit("code-change", {
+
+roomId,
+code: value
+
+});
+
+};
+
+
+// ✅ Send Chat
+const sendMessage = (e) => {
+
+e.preventDefault();
+
+socketRef.current.emit("chat-message", {
+
+roomId,
+message: messageInput,
+userName: user.name,
+timestamp: new Date()
+
+});
+
+setMessageInput("");
+
+};
+
+
+// UI
+return (
+
+<div className="h-screen flex">
+
+{/* Editor */}
+
+<div className="flex-1">
+
+<Editor
+
+height="70%"
+
+language={language}
+
+value={code}
+
+theme="vs-dark"
+
+onChange={handleCodeChange}
+
+/>
+
+
+{/* Console */}
+
+<div className="bg-black text-white p-3 h-[30%]">
+
+<button onClick={handleRunCode}>
+
+Run
+
+</button>
+
+<button onClick={handleSaveCode}>
+
+Save
+
+</button>
+
+<pre>
+
+{output}
+
+</pre>
+
+</div>
+
+</div>
+
+
+
+{/* Chat */}
+
+<div className="w-80 bg-gray-900 text-white">
+
+<div>
+
+Users:
+
+{users.map((u,i)=> <div key={i}>{u}</div>)}
+
+</div>
+
+
+<div>
+
+{messages.map((m,i)=>(
+
+<div key={i}>
+
+<b>{m.userName}</b> : {m.message}
+
+</div>
+
+))}
+
+</div>
+
+
+<form onSubmit={sendMessage}>
+
+<input
+
+value={messageInput}
+
+onChange={(e)=>setMessageInput(e.target.value)}
+
+/>
+
+<button>
+
+Send
+
+</button>
+
+</form>
+
+</div>
+
+
+</div>
+
+);
+
 };
 
 export default CodingRoom;
