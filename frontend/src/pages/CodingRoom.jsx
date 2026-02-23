@@ -8,26 +8,31 @@ import toast from "react-hot-toast";
 import api from "../utils/api";
 import { getSocket } from "../socket/socket";
 
+const LANGUAGE_OPTIONS = [
+  { value: "javascript", label: "JavaScript" },
+  { value: "python", label: "Python" },
+  { value: "java", label: "Java" },
+  { value: "cpp", label: "C++" },
+  { value: "c", label: "C" },
+];
+
 const CodingRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
 
   const [code, setCode] = useState("// Start coding...");
   const [language, setLanguage] = useState("javascript");
+  const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
 
   const [isRunning, setIsRunning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const [users, setUsers] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [messageInput, setMessageInput] = useState("");
-
   const [user, setUser] = useState(null);
 
   const socketRef = useRef(null);
 
-  // Check user login
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (!userData) {
@@ -37,7 +42,6 @@ const CodingRoom = () => {
     setUser(JSON.parse(userData));
   }, []);
 
-  // Load code and connect socket
   useEffect(() => {
     if (!user) return;
 
@@ -57,10 +61,6 @@ const CodingRoom = () => {
       setUsers(usersList);
     });
 
-    socketRef.current.on("chat-message", (msg) => {
-      setMessages((prev) => [...prev, msg]);
-    });
-
     return () => {
       if (socketRef.current) {
         socketRef.current.emit("leave-room", { roomId });
@@ -68,7 +68,6 @@ const CodingRoom = () => {
     };
   }, [user]);
 
-  // Load code from database
   const loadCode = async () => {
     try {
       const res = await api.get(`/room/load-code/${roomId}`);
@@ -81,7 +80,6 @@ const CodingRoom = () => {
     }
   };
 
-  // Save Code
   const handleSaveCode = async () => {
     try {
       setIsSaving(true);
@@ -97,7 +95,6 @@ const CodingRoom = () => {
     setIsSaving(false);
   };
 
-  // Run Code
   const handleRunCode = async () => {
     try {
       setIsRunning(true);
@@ -105,8 +102,9 @@ const CodingRoom = () => {
       const res = await api.post("/code/execute-code", {
         code,
         language,
+        input,
       });
-      setOutput(res.data.output);
+      setOutput(res.data.output || "");
       toast.success("Executed");
     } catch {
       toast.error("Execution failed");
@@ -114,7 +112,6 @@ const CodingRoom = () => {
     setIsRunning(false);
   };
 
-  // Code change
   const handleCodeChange = (value) => {
     const nextCode = value ?? "";
     setCode(nextCode);
@@ -126,104 +123,67 @@ const CodingRoom = () => {
     }
   };
 
-  // Send Chat
-  const sendMessage = (e) => {
-    e.preventDefault();
-    const trimmed = messageInput.trim();
-    if (!trimmed) return;
-    if (socketRef.current) {
-      socketRef.current.emit("chat-message", {
-        roomId,
-        message: trimmed,
-        userName: user?.name || "Anonymous",
-        timestamp: new Date(),
-      });
-    }
-    setMessageInput("");
-  };
-
   return (
-    <div className="h-screen flex overflow-hidden bg-dark-100 text-white">
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 min-h-0">
-          <Editor
-            height="100%"
-            language={language}
-            value={code}
-            theme="vs-dark"
-            onChange={handleCodeChange}
-          />
-        </div>
-
-        <div className="h-48 border-t border-dark-400 bg-black text-white p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <button
-              onClick={handleRunCode}
-              disabled={isRunning}
-              className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-50"
-            >
-              {isRunning ? "Running..." : "Run"}
-            </button>
-            <button
-              onClick={handleSaveCode}
-              disabled={isSaving}
-              className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-sm disabled:opacity-50"
-            >
-              {isSaving ? "Saving..." : "Save"}
-            </button>
-          </div>
-          <pre className="text-xs text-gray-200 overflow-auto h-28 whitespace-pre-wrap">
-            {output}
-          </pre>
+    <div className="h-screen flex flex-col bg-dark-100 text-white">
+      <div className="border-b border-dark-400 px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="text-xs text-gray-400">Room</div>
+        <div className="font-mono text-sm text-gray-200">{roomId}</div>
+        <div className="text-xs text-gray-500">Users: {users.length}</div>
+        <div className="ml-auto flex items-center gap-2">
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="bg-dark-300 border border-dark-400 text-sm rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-600"
+          >
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleRunCode}
+            disabled={isRunning}
+            className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-50"
+          >
+            {isRunning ? "Running..." : "Run"}
+          </button>
+          <button
+            onClick={handleSaveCode}
+            disabled={isSaving}
+            className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-sm disabled:opacity-50"
+          >
+            {isSaving ? "Saving..." : "Save"}
+          </button>
         </div>
       </div>
 
-      <div className="w-80 max-w-full bg-gray-900 text-white flex flex-col border-l border-gray-800">
-        <div className="p-3 border-b border-gray-800">
-          <div className="text-sm font-semibold">Room Chat</div>
-          <div className="text-xs text-gray-400">Users online: {users.length}</div>
-        </div>
+      <div className="flex-1 min-h-0">
+        <Editor
+          height="100%"
+          language={language}
+          value={code}
+          theme="vs-dark"
+          onChange={handleCodeChange}
+        />
+      </div>
 
-        <div className="p-3 border-b border-gray-800">
-          <div className="text-xs uppercase text-gray-500 mb-2">Users</div>
-          <div className="flex flex-wrap gap-2">
-            {users.length === 0 ? (
-              <span className="text-xs text-gray-500">No users yet</span>
-            ) : (
-              users.map((u, i) => (
-                <span key={i} className="px-2 py-1 rounded bg-gray-800 text-xs">
-                  {u}
-                </span>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
-          {messages.length === 0 ? (
-            <div className="text-xs text-gray-500">No messages yet.</div>
-          ) : (
-            messages.map((m, i) => (
-              <div key={i} className="text-sm">
-                <span className="font-semibold text-gray-200">{m.userName}</span>
-                <span className="text-gray-400">: </span>
-                <span className="text-gray-300">{m.message}</span>
-              </div>
-            ))
-          )}
-        </div>
-
-        <form onSubmit={sendMessage} className="p-3 border-t border-gray-800 flex gap-2">
-          <input
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            className="flex-1 px-3 py-2 rounded bg-gray-800 text-sm text-white outline-none focus:ring-2 focus:ring-blue-600"
-            placeholder="Type a message..."
+      <div className="h-56 border-t border-dark-400 bg-dark-200 grid grid-cols-1 md:grid-cols-2">
+        <div className="p-3 border-b md:border-b-0 md:border-r border-dark-400">
+          <div className="text-xs uppercase text-gray-400">Input</div>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Enter input for the program"
+            className="mt-2 w-full h-[calc(100%-1.5rem)] resize-none bg-dark-300 border border-dark-400 rounded p-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
-          <button className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-sm">
-            Send
-          </button>
-        </form>
+        </div>
+        <div className="p-3">
+          <div className="text-xs uppercase text-gray-400">Output</div>
+          <pre className="mt-2 w-full h-[calc(100%-1.5rem)] overflow-auto bg-dark-300 border border-dark-400 rounded p-2 text-xs text-gray-200 whitespace-pre-wrap">
+            {output || "Output will appear here"}
+          </pre>
+        </div>
       </div>
     </div>
   );
