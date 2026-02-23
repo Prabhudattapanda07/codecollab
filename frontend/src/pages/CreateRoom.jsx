@@ -11,7 +11,7 @@ const CreateRoom = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/create-room');
+      const response = await api.post('room/create');
 
       if (response.data.success) {
         const roomId = response.data.room.roomId;

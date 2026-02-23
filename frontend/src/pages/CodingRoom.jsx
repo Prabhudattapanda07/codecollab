@@ -36,7 +36,7 @@ useEffect(() => {
 const userData = localStorage.getItem("user");
 
 if (!userData) {
-navigate("/login");
+navigate("/auth/login");
 return;
 }
 
@@ -93,7 +93,7 @@ const loadCode = async () => {
 
 try {
 
-const res = await api.get(`/code/load-code/${roomId}`);
+const res = await api.get(`/code/load-code/:${roomId}`);
 
 if (res.data.success) {
 
