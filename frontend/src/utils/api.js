@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://codecollab-0mco.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL || 'https://codecollab-0mco.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -18,9 +18,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Handle response errors
