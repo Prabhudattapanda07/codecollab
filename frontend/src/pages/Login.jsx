@@ -20,7 +20,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/api/login', formData);
+      const response = await api.post('/login', formData);
       
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
