@@ -55,6 +55,7 @@ const Dashboard = () => {
       go: 'go',
       rust: 'rs',
       typescript: 'ts',
+      HTML: 'html',
     };
     const ext = extensions[item.language] || 'txt';
     const filename = `room-${item.roomId || 'code'}.${ext}`;
