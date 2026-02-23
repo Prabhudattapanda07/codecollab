@@ -13,7 +13,7 @@ const codeSchema = new mongoose.Schema({
   language: {
     type: String,
     default: 'javascript',
-    enum: ['javascript', 'python', 'java', 'cpp', 'c', 'csharp', 'go', 'rust', 'typescript']
+    enum: ['javascript', 'python', 'java', 'cpp', 'c', 'csharp', 'go', 'rust', 'typescript', 'html']
   },
   updatedAt: {
     type: Date,
