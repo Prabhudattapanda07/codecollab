@@ -20,6 +20,7 @@ const CodingRoom = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [isHtmlPreviewMaximized, setIsHtmlPreviewMaximized] = useState(false);
   const socketRef = useRef(null);
   const chatEndRef = useRef(null);
   const editorRef = useRef(null);
@@ -100,9 +101,10 @@ const CodingRoom = () => {
   };
 
   const handleCodeChange = (value) => {
-    setCode(value);
+    const nextCode = value ?? '';
+    setCode(nextCode);
     if (socketRef.current) {
-      socketRef.current.emit('code-change', { roomId, code: value });
+      socketRef.current.emit('code-change', { roomId, code: nextCode });
     }
   };
 
@@ -126,7 +128,8 @@ const CodingRoom = () => {
         toast.success('Code saved successfully!');
       }
     } catch (error) {
-      toast.error('Failed to save code');
+      const message = error.response?.data?.message || error.message || 'Failed to save code';
+      toast.error(message);
     } finally {
       setIsSaving(false);
     }
@@ -252,6 +255,26 @@ const CodingRoom = () => {
     toast.success('Room ID copied to clipboard!');
   };
 
+  const handleToggleHtmlPreview = () => {
+    setIsHtmlPreviewMaximized((prev) => !prev);
+  };
+
+  const handleOpenHtmlPreviewInNewTab = () => {
+    try {
+      const blob = new Blob([code || ''], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!newWindow) {
+        toast.error('Popup blocked. Allow popups to open preview.');
+        return;
+      }
+      newWindow.focus();
+      newWindow.addEventListener('beforeunload', () => URL.revokeObjectURL(url));
+    } catch {
+      toast.error('Failed to open preview');
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-dark-100">
       {/* Header */}
@@ -355,9 +378,27 @@ const CodingRoom = () => {
           {/* Input + Output Console / HTML Preview */}
           <div className="h-[30%] bg-dark-200 border-t border-dark-400 flex flex-col">
             <div className="px-4 py-2 bg-dark-300 border-b border-dark-400">
-              <h3 className="text-white font-semibold">
-                {language === 'html' ? 'HTML Preview' : 'Console'}
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-white font-semibold">
+                  {language === 'html' ? 'HTML Preview' : 'Console'}
+                </h3>
+                {language === 'html' && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleOpenHtmlPreviewInNewTab}
+                      className="text-xs px-3 py-1 bg-dark-400 text-white rounded hover:bg-dark-500 transition duration-200"
+                    >
+                      New Tab
+                    </button>
+                    <button
+                      onClick={handleToggleHtmlPreview}
+                      className="text-xs px-3 py-1 bg-dark-400 text-white rounded hover:bg-dark-500 transition duration-200"
+                    >
+                      {isHtmlPreviewMaximized ? 'Minimize' : 'Expand'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex-1 overflow-auto p-4 space-y-4">
               {language !== 'html' && (
@@ -451,6 +492,36 @@ const CodingRoom = () => {
           </div>
         </div>
       </div>
+
+      {isHtmlPreviewMaximized && language === 'html' && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center p-4">
+          <div className="w-full h-full bg-white rounded-lg overflow-hidden shadow-2xl flex flex-col">
+            <div className="bg-gray-900 text-white px-4 py-2 flex items-center justify-between">
+              <span className="text-sm font-semibold">HTML Preview</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleOpenHtmlPreviewInNewTab}
+                  className="px-3 py-1 text-sm bg-gray-800 rounded hover:bg-gray-700 transition duration-200"
+                >
+                  New Tab
+                </button>
+                <button
+                  onClick={handleToggleHtmlPreview}
+                  className="px-3 py-1 text-sm bg-gray-800 rounded hover:bg-gray-700 transition duration-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <iframe
+              title="HTML Preview Fullscreen"
+              srcDoc={code}
+              className="w-full h-full"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
