@@ -40,10 +40,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api', authRoutes);
-app.use('/api', roomRoutes);
-app.use('/api', codeRoutes);
-
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/room', roomRoutes);
+app.use('/api/code', codeRoutes);
 // Health check route
 app.get('/api/health', (req, res) => {
   res.status(200).json({
