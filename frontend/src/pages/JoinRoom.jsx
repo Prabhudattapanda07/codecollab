@@ -19,7 +19,7 @@ const JoinRoom = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/room/join', { roomId: roomId.trim() });
+      const response = await api.post('/room/join-room', { roomId: roomId.trim() });
 
       if (response.data.success) {
         toast.success('Joined room successfully!');

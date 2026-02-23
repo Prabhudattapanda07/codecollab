@@ -93,7 +93,7 @@ const loadCode = async () => {
 
 try {
 
-const res = await api.get(`/code/load-code/:${roomId}`);
+const res = await api.get(`/room/load-code/${roomId}`);
 
 if (res.data.success) {
 
@@ -119,7 +119,7 @@ try {
 
 setIsSaving(true);
 
-await api.post("/code/save-code", {
+await api.post("/room/save-code", {
 
 roomId,
 code,

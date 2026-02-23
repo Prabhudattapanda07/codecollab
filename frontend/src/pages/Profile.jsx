@@ -23,7 +23,7 @@ const Profile = () => {
       if (!localStorage.getItem('token')) return;
       try {
         setLoadingSaved(true);
-        const response = await api.get('/api/my-saved-code');
+        const response = await api.get('/room/my-saved-code');
         setSavedCode(response.data.savedCode || []);
       } catch (err) {
         toast.error('Could not load saved code');
@@ -136,4 +136,3 @@ const Profile = () => {
 };
 
 export default Profile;
-
