@@ -71,6 +71,21 @@ const Dashboard = () => {
     toast.success('Download started');
   };
 
+  const handleDeleteRoom = async (roomId) => {
+    const confirmed = window.confirm('Delete this room? This will remove the room and its saved code.');
+    if (!confirmed) return;
+    try {
+      const response = await api.delete(`/room/delete-room/${roomId}`);
+      if (response.data.success) {
+        toast.success('Room deleted');
+        setSavedCode((prev) => prev.filter((item) => item.roomId !== roomId));
+      }
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to delete room';
+      toast.error(message);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -224,6 +239,12 @@ const Dashboard = () => {
                         className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 text-sm font-medium"
                       >
                         Open room
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRoom(item.roomId)}
+                        className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-200 text-sm font-medium"
+                      >
+                        Delete room
                       </button>
                       <div className="flex space-x-2">
                         <button

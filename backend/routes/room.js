@@ -6,7 +6,8 @@ const {
   joinRoom,
   saveCode,
   loadCode,
-  getMySavedCode
+  getMySavedCode,
+  deleteRoom
 } = require('../controllers/roomController');
 
 router.post('/create-room', protect, createRoom);
@@ -14,5 +15,6 @@ router.post('/join-room', protect, joinRoom);
 router.get('/my-saved-code', protect, getMySavedCode);
 router.post('/save-code', protect, saveCode);
 router.get('/load-code/:roomId', protect, loadCode);
+router.delete('/delete-room/:roomId', protect, deleteRoom);
 
 module.exports = router;

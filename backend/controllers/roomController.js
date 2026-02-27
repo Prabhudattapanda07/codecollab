@@ -228,3 +228,49 @@ exports.loadCode = async (req, res) => {
     });
   }
 };
+
+// @route   DELETE /api/room/delete-room/:roomId
+// @desc    Delete a room and its code
+// @access  Private (creator only)
+exports.deleteRoom = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    if (!roomId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a room ID'
+      });
+    }
+
+    const room = await Room.findOne({ roomId });
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room not found'
+      });
+    }
+
+    if (room.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the room creator can delete this room'
+      });
+    }
+
+    await Code.deleteMany({ roomId });
+    await Room.deleteOne({ roomId });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Room deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete room error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting room',
+      error: error.message
+    });
+  }
+};

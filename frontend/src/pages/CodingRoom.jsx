@@ -165,6 +165,21 @@ const CodingRoom = () => {
     }
   };
 
+  const handleDeleteRoom = async () => {
+    const confirmed = window.confirm('Delete this room? This will remove the room and its saved code.');
+    if (!confirmed) return;
+    try {
+      const response = await api.delete(`/room/delete-room/${roomId}`);
+      if (response.data.success) {
+        toast.success('Room deleted');
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to delete room';
+      toast.error(message);
+    }
+  };
+
   const handleCopyAllCode = async () => {
     try {
       setIsCopying(true);
@@ -352,6 +367,13 @@ const CodingRoom = () => {
             className="px-3 py-2 bg-dark-300 text-white rounded-lg hover:bg-dark-400 transition duration-200 text-sm"
           >
             Download
+          </button>
+
+          <button
+            onClick={handleDeleteRoom}
+            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-200 text-sm"
+          >
+            Delete Room
           </button>
         </div>
       </div>
