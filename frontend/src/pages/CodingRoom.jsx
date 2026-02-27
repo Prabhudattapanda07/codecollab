@@ -25,6 +25,15 @@ const CodingRoom = () => {
   const chatEndRef = useRef(null);
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
+  const userRef = useRef(null);
+  const roomIdRef = useRef(roomId);
+  const cursorListenerRef = useRef(null);
+  const remoteDecorationsRef = useRef(new Map());
+  const remoteColorsRef = useRef(new Map());
+  const lastCursorSentRef = useRef(0);
+  const cursorSendTimerRef = useRef(null);
+
+  const REMOTE_CURSOR_COLORS = ['red', 'green', 'blue', 'amber', 'purple', 'teal'];
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -34,6 +43,14 @@ const CodingRoom = () => {
     }
     setUser(JSON.parse(userData));
   }, [navigate]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
 
   useEffect(() => {
     if (!user) return;
@@ -68,13 +85,22 @@ const CodingRoom = () => {
       toast.success(`${userName} joined the room`);
     });
 
-    socketRef.current.on('user-left', ({ userName, users: usersList }) => {
+    socketRef.current.on('user-left', ({ userName, users: usersList, socketId }) => {
       setUsers(usersList);
+      if (socketId) {
+        removeRemoteCursor(socketId);
+      }
       toast(`${userName} left the room`, { icon: '👋' });
     });
 
     socketRef.current.on('chat-message', ({ message, userName, timestamp }) => {
       setMessages((prev) => [...prev, { message, userName, timestamp }]);
+    });
+
+    socketRef.current.off('cursor-update');
+    socketRef.current.on('cursor-update', ({ socketId, cursor }) => {
+      if (!socketId || !cursor) return;
+      updateRemoteCursor(socketId, cursor);
     });
 
     return () => {
@@ -87,6 +113,18 @@ const CodingRoom = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (cursorListenerRef.current) {
+        cursorListenerRef.current.dispose();
+      }
+      if (cursorSendTimerRef.current) {
+        clearTimeout(cursorSendTimerRef.current);
+        cursorSendTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const loadCode = async () => {
     try {
@@ -218,6 +256,13 @@ const CodingRoom = () => {
     editorRef.current = editor;
     monacoRef.current = monaco;
 
+    if (cursorListenerRef.current) {
+      cursorListenerRef.current.dispose();
+    }
+    cursorListenerRef.current = editor.onDidChangeCursorSelection(() => {
+      emitCursorChange();
+    });
+
     // Basic HTML tag suggestions similar to VS Code
     monaco.languages.registerCompletionItemProvider('html', {
       triggerCharacters: ['<', '/'],
@@ -248,6 +293,110 @@ const CodingRoom = () => {
 
         return { suggestions };
       },
+    });
+  };
+
+  const getColorIndex = (socketId) => {
+    if (remoteColorsRef.current.has(socketId)) {
+      return remoteColorsRef.current.get(socketId);
+    }
+    let hash = 0;
+    for (let i = 0; i < socketId.length; i += 1) {
+      hash = (hash * 31 + socketId.charCodeAt(i)) >>> 0;
+    }
+    const index = hash % REMOTE_CURSOR_COLORS.length;
+    remoteColorsRef.current.set(socketId, index);
+    return index;
+  };
+
+  const updateRemoteCursor = (socketId, cursor) => {
+    if (!editorRef.current || !monacoRef.current) return;
+    const { position, selection } = cursor;
+    if (!position) return;
+
+    const colorIndex = getColorIndex(socketId);
+    const selectionClass = `remote-selection-${REMOTE_CURSOR_COLORS[colorIndex]}`;
+    const cursorClass = `remote-cursor-${REMOTE_CURSOR_COLORS[colorIndex]}`;
+
+    const decorations = [];
+
+    if (selection) {
+      const hasSelection =
+        selection.startLineNumber !== selection.endLineNumber ||
+        selection.startColumn !== selection.endColumn;
+      if (hasSelection) {
+        decorations.push({
+          range: new monacoRef.current.Range(
+            selection.startLineNumber,
+            selection.startColumn,
+            selection.endLineNumber,
+            selection.endColumn
+          ),
+          options: { className: selectionClass }
+        });
+      }
+    }
+
+    decorations.push({
+      range: new monacoRef.current.Range(
+        position.lineNumber,
+        position.column,
+        position.lineNumber,
+        position.column
+      ),
+      options: { beforeContentClassName: cursorClass }
+    });
+
+    const oldDecorations = remoteDecorationsRef.current.get(socketId) || [];
+    const newDecorations = editorRef.current.deltaDecorations(oldDecorations, decorations);
+    remoteDecorationsRef.current.set(socketId, newDecorations);
+  };
+
+  const removeRemoteCursor = (socketId) => {
+    if (!editorRef.current) return;
+    const oldDecorations = remoteDecorationsRef.current.get(socketId);
+    if (oldDecorations && oldDecorations.length > 0) {
+      editorRef.current.deltaDecorations(oldDecorations, []);
+    }
+    remoteDecorationsRef.current.delete(socketId);
+    remoteColorsRef.current.delete(socketId);
+  };
+
+  const emitCursorChange = () => {
+    if (!socketRef.current || !editorRef.current) return;
+    if (!userRef.current || !roomIdRef.current) return;
+
+    const now = Date.now();
+    if (now - lastCursorSentRef.current < 50) {
+      if (!cursorSendTimerRef.current) {
+        cursorSendTimerRef.current = setTimeout(() => {
+          cursorSendTimerRef.current = null;
+          emitCursorChange();
+        }, 50);
+      }
+      return;
+    }
+    lastCursorSentRef.current = now;
+
+    const position = editorRef.current.getPosition();
+    const selection = editorRef.current.getSelection();
+    if (!position || !selection) return;
+
+    socketRef.current.emit('cursor-change', {
+      roomId: roomIdRef.current,
+      userName: userRef.current.name,
+      cursor: {
+        position: {
+          lineNumber: position.lineNumber,
+          column: position.column
+        },
+        selection: {
+          startLineNumber: selection.startLineNumber,
+          startColumn: selection.startColumn,
+          endLineNumber: selection.endLineNumber,
+          endColumn: selection.endColumn
+        }
+      }
     });
   };
 
@@ -550,3 +699,4 @@ const CodingRoom = () => {
 };
 
 export default CodingRoom;
+

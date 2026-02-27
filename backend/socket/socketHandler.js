@@ -43,6 +43,18 @@ const socketHandler = (io) => {
       socket.to(roomId).emit('language-update', { language });
     });
 
+    // Cursor change
+    socket.on('cursor-change', ({ roomId, cursor, userName }) => {
+      if (!roomId || !cursor) return;
+      const roomUsers = rooms.get(roomId);
+      const resolvedName = roomUsers?.get(socket.id) || userName || 'User';
+      socket.to(roomId).emit('cursor-update', {
+        socketId: socket.id,
+        userName: resolvedName,
+        cursor
+      });
+    });
+
     // Chat message
     socket.on('chat-message', ({ roomId, message, userName, timestamp }) => {
       io.to(roomId).emit('chat-message', {
