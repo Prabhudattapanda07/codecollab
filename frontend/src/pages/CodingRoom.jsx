@@ -279,6 +279,7 @@ const CodingRoom = () => {
   };
 
   const handleToggleChatMinimize = () => {
+    setIsResizingChat(false);
     setIsChatMinimized((prev) => !prev);
   };
 
@@ -473,18 +474,15 @@ const CodingRoom = () => {
         </div>
 
         {/* Sidebar */}
-        <div
-          className={`bg-dark-200 border-l border-dark-400 flex flex-col relative ${
-            isChatMinimized ? 'w-0' : ''
-          }`}
-          style={isChatMinimized ? undefined : { width: chatWidth }}
-        >
-          {!isChatMinimized && (
+        {!isChatMinimized && (
+          <div
+            className="bg-dark-200 border-l border-dark-400 flex flex-col relative"
+            style={{ width: chatWidth }}
+          >
             <div
               className="absolute left-0 top-0 h-full w-1 cursor-col-resize bg-transparent"
               onMouseDown={handleChatResizeStart}
             />
-          )}
           {/* Users Section */}
           <div className="p-4 border-b border-dark-400">
             <h3 className="text-white font-semibold mb-3">Connected Users ({users.length})</h3>
@@ -537,7 +535,8 @@ const CodingRoom = () => {
               </div>
             </form>
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
       {isChatMinimized && (
