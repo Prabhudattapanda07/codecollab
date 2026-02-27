@@ -21,6 +21,9 @@ const CodingRoom = () => {
   const [isCopying, setIsCopying] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isHtmlPreviewMaximized, setIsHtmlPreviewMaximized] = useState(false);
+  const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [chatWidth, setChatWidth] = useState(320);
+  const [isResizingChat, setIsResizingChat] = useState(false);
   const socketRef = useRef(null);
   const chatEndRef = useRef(null);
   const editorRef = useRef(null);
@@ -275,6 +278,39 @@ const CodingRoom = () => {
     }
   };
 
+  const handleToggleChatMinimize = () => {
+    setIsChatMinimized((prev) => !prev);
+  };
+
+  const handleChatResizeStart = (e) => {
+    e.preventDefault();
+    setIsResizingChat(true);
+  };
+
+  const handleChatResizeMove = (e) => {
+    if (!isResizingChat) return;
+    const nextWidth = Math.min(520, Math.max(220, window.innerWidth - e.clientX));
+    setChatWidth(nextWidth);
+  };
+
+  const handleChatResizeEnd = () => {
+    if (isResizingChat) {
+      setIsResizingChat(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isResizingChat) return;
+    const handleMove = (e) => handleChatResizeMove(e);
+    const handleUp = () => handleChatResizeEnd();
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [isResizingChat]);
+
   return (
     <div className="h-screen flex flex-col bg-dark-100">
       {/* Header */}
@@ -437,7 +473,18 @@ const CodingRoom = () => {
         </div>
 
         {/* Sidebar */}
-        <div className="w-80 bg-dark-200 border-l border-dark-400 flex flex-col">
+        <div
+          className={`bg-dark-200 border-l border-dark-400 flex flex-col relative ${
+            isChatMinimized ? 'w-0' : ''
+          }`}
+          style={isChatMinimized ? undefined : { width: chatWidth }}
+        >
+          {!isChatMinimized && (
+            <div
+              className="absolute left-0 top-0 h-full w-1 cursor-col-resize bg-transparent"
+              onMouseDown={handleChatResizeStart}
+            />
+          )}
           {/* Users Section */}
           <div className="p-4 border-b border-dark-400">
             <h3 className="text-white font-semibold mb-3">Connected Users ({users.length})</h3>
@@ -492,6 +539,31 @@ const CodingRoom = () => {
           </div>
         </div>
       </div>
+
+      {isChatMinimized && (
+        <button
+          onClick={handleToggleChatMinimize}
+          className="fixed right-4 bottom-4 w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition duration-200 flex items-center justify-center"
+          title="Open chat"
+        >
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
+      )}
+
+      {!isChatMinimized && (
+        <button
+          onClick={handleToggleChatMinimize}
+          className="fixed right-[340px] bottom-4 w-10 h-10 rounded-full bg-dark-300 text-white shadow hover:bg-dark-400 transition duration-200 flex items-center justify-center"
+          title="Minimize chat"
+          style={{ right: Math.max(16, chatWidth + 16) }}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+          </svg>
+        </button>
+      )}
 
       {isHtmlPreviewMaximized && language === 'html' && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center p-4">
