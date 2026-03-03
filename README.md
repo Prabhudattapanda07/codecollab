@@ -196,7 +196,8 @@ npm start
 
 ## 🌍 Live Demo
 
-Frontend: https://codecollab-orpin.vercel.app/
+link : https://code-collab-roan.vercel.app/
+Frontend: vercel
 Backend: Hosted on Render
 
 > Note: Backend may take up to 60 seconds to wake up if inactive (Render free tier cold start).
